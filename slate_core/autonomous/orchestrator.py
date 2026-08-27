@@ -85,7 +85,8 @@ class AutonomousOrchestrator:
         self.trading_executor = TradingExecutor(self.config)
         self.market_data_manager = MarketDataManager(
             symbols=self.config.allowed_symbols,
-            update_interval_seconds=60  # Update every minute
+            update_interval_seconds=60,  # Update every minute
+            provider_name=getattr(self.config, "data_provider", None),
         )
 
         # Trading intelligence layer removed with the legacy intelligence
@@ -549,6 +550,13 @@ class AutonomousOrchestrator:
                 logger.debug("No best strategy identified")
                 return None
 
+            # Plumb existing LONG/SHORT labels — do not invent a new strategy.
+            strategy_design = best_strategy.get('strategy_design') or {}
+            entry_type = (
+                best_strategy.get('entry_type')
+                or strategy_design.get('entry_type')
+            )
+
             # Create Discovery object from real results
             discovery = Discovery(
                 question=f"Can we find profitable strategies for {goal.symbol} in {goal.timeframe}?",
@@ -574,8 +582,11 @@ class AutonomousOrchestrator:
                     'out_of_sample_tested': True,
                     'monte_carlo_validated': best_strategy.get('monte_carlo_win_rate', 0.0) > 0.5,
                     'transaction_costs_realistic': best_strategy.get('total_fees_usdt', 0.0) > 0,
-                    'parameter_count': best_strategy.get('parameter_count', 5)
-                }
+                    'parameter_count': best_strategy.get('parameter_count', 5),
+                    'entry_type': entry_type,
+                    'signal': best_strategy.get('signal'),
+                },
+                entry_type=entry_type,
             )
 
             logger.info(f"✅ Real discovery completed: {discovery.answer}")

@@ -48,6 +48,12 @@ DEFAULT_TRAILING_STOP_PCT = 0.015  # 1.5%
 BINANCE_API_BASE = "https://api.binance.com"
 BINANCE_API_KLINES = f"{BINANCE_API_BASE}/api/v3/klines"
 BINANCE_FUTURES_API_BASE = "https://fapi.binance.com"
+KRAKEN_API_BASE = "https://api.kraken.com"
+COINBASE_EXCHANGE_API_BASE = "https://api.exchange.coinbase.com"
+
+# Market-data / paper-execution venue. Public REST only; paper trading never
+# places live orders. Override with SLATE_DATA_PROVIDER=binance|kraken|coinbase.
+DEFAULT_DATA_PROVIDER = "binance"
 
 # Data cache paths
 DEFAULT_CACHE_DIR = DATA_CACHE_DIR
