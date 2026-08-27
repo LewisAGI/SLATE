@@ -1,0 +1,21 @@
+{
+  "jsonrpc": "2.0",
+  "error": null,
+  "result": {
+    "instrument_name": "BTC-PERPETUAL",
+    "last_price": 79501.5,
+    "best_bid_price": 79492.5,
+    "best_ask_price": 79493.0,
+    "mark_price": 79496.94,
+    "stats": {
+      "high": 80550.5,
+      "low": 77650.0,
+      "price_change": 1.2294,
+      "volume": 6802.97558637,
+      "volume_usd": 537938020.0,
+      "volume_notional": 537938020.0
+    },
+    "timestamp": 1787831906512,
+    "state": "open"
+  }
+}
