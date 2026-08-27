@@ -10,13 +10,14 @@
 
 SLATE (Strategy Learning & Autonomous Trading Engine) is an intelligent system that automatically discovers, tests, and validates cryptocurrency trading strategies using machine learning and statistical analysis. It continuously explores diverse strategy templates to find profitable edges in market data.
 
-**⚠️ IMPORTANT:** SLATE runs in **PAPER TRADING MODE ONLY**. No real money is ever risked.
+**⚠️ IMPORTANT:** SLATE runs in **PAPER TRADING MODE ONLY**. No real money is ever risked. Paper execution does not place live orders and the public market-data adapters do not send API keys or auth headers.
 
 ## 🚫 REAL DATA ONLY POLICY
 
 **SLATE uses ONLY real market data. NO synthetic, simulated, or artificial data is ever used.**
 
-- ✅ **Real Market Data**: All discoveries tested on actual Binance SOLUSDT futures data
+- ✅ **Real Market Data**: Discoveries are tested on real exchange data (default book is Binance SOLUSDT futures). Paper tickers/candles come from public REST on the selected venue.
+- ✅ **Fail closed**: If a venue has no real pair, no last price, or an empty/error candle page, adapters raise `MarketDataError`. They do not invent ticks (no synthetic $50k).
 - ✅ **Brutally Realistic Costs**: Real transaction fees, slippage, and fill rates applied
 - ✅ **Genuine Market Conditions**: Authentic volatility, regime changes, and price action
 - ❌ **NO Synthetic Data**: Absolutely no artificial price generation or market simulation
@@ -30,6 +31,25 @@ SLATE (Strategy Learning & Autonomous Trading Engine) is an intelligent system t
 - Partial Fills: 15% probability
 
 This ensures SLATE discovers **genuine market edges**, not artifacts of synthetic data.
+
+## Paper trading and market-data venues
+
+Paper longs and shorts share one execution path (`PaperTradingBook` / `TradingExecutor`). Side is read from existing discovery fields (`entry_type`, signed `signal`, `validation_details`) — there is no separate short strategy. PnL is the perpetual convention: long `(exit − entry) * qty`, short `(entry − exit) * qty`. Caps on that book are **3% of equity**, **leverage 3**, default **$100 notional**. There is no borrow, margin, or liquidation model.
+
+Market data is provider-pluggable. **Binance stays the default.** Public REST adapters need no API keys:
+
+| `SLATE_DATA_PROVIDER` | Venue | What it maps |
+| --- | --- | --- |
+| `binance` (default) | Binance public REST (spot or USDT-M perp wrapper) | `SOLUSDT` / `BTCUSDT` / `ETHUSDT` as listed |
+| `kraken` | Kraken public REST | `SOLUSDT` → `SOLUSDT` then `SOLUSD` (BTC is XBT) |
+| `coinbase` | Coinbase Exchange public REST (`api.exchange.coinbase.com`, not Advanced Trade v3) | `SOLUSDT` → `SOL-USDT` then `SOL-USD` |
+| `deribit` | Deribit public JSON-RPC (`https://www.deribit.com/api/v2/`; testnet `https://test.deribit.com/api/v2/` is opt-in, not default) | `BTCUSDT` → `BTC-PERPETUAL` then linear `BTC_USDC-PERPETUAL`; same for ETH. **Perps / linear only this pass.** `SOLUSDT` and options (`BTC-27JUN26-100000-C`) fail closed. |
+
+Select the venue with `SLATE_DATA_PROVIDER=binance|kraken|coinbase|deribit` or `AutonomousConfig.data_provider`. Replay of recorded real bars is constructed explicitly (`ReplayMarketDataProvider`); `get_market_data_provider("replay")` raises so a name lookup cannot invent a book.
+
+**Coinbase candles:** Exchange API returns at most **350** bars per request. `limit > 350` paginates with `start` / `end` or raises `MarketDataError`. It does not silently return a short series.
+
+**Deribit charts:** `public/get_tradingview_chart_data` is capped at **5000** bars per page (observed 5001 inclusive). `limit > 5000` paginates or fail-closes the same way.
 
 ---
 
@@ -45,6 +65,8 @@ All previous discovery data has been purged due to synthetic data contamination.
 
 - **🤖 Autonomous Discovery**: Continuously tests 35+ diverse strategy templates
 - **📊 Modern Dashboard**: Real-time web interface with charts and analytics
+- **📉 Paper longs and shorts**: Same book, fees, slippage, and 3% / lev 3 / $100 caps on both sides
+- **📡 Pluggable public data**: Binance (default), Kraken, Coinbase, Deribit — fail closed, no keys
 - **💰 Brutal Realism**: Honest backtesting with realistic fees, slippage, and fill rates
 - **🎯 Diverse Strategies**: Momentum, mean reversion, time patterns, microstructure, statistical arbitrage, and more
 - **🧠 Monte Carlo Validation**: 100+ path validation for robustness
@@ -57,14 +79,16 @@ All previous discovery data has been purged due to synthetic data contamination.
 ### Prerequisites
 
 - Python 3.8+
-- Dependencies: `pip install -e ".[dev]`
+- Dependencies: `pip install -r requirements.txt` (add `requirements-dev.txt` for pytest)
 
 ### Installation
 
 ```bash
-git clone https://github.com/Tilanthi/SLATE.git
+git clone https://github.com/LewisAGI/SLATE.git
 cd SLATE
-pip install -e .
+pip install -r requirements.txt
+# tests:
+pip install -r requirements-dev.txt
 ```
 
 ### Start the Server
@@ -348,18 +372,16 @@ SLATE tests **35+ diverse strategy templates** across 8 categories:
 Create a `.env` file in the project root:
 
 ```bash
-# API Keys (if using external data sources)
-BINANCE_API_KEY=your_api_key
-BINANCE_API_SECRET=your_api_secret
-
-# Server Configuration
-HOST=0.0.0.0
-PORT=8788
+# Paper market-data venue (public REST, no API keys).
+# Default is Binance. Kraken / Coinbase / Deribit are opt-in.
+SLATE_DATA_PROVIDER=binance   # or kraken | coinbase | deribit
 ```
+
+Public ticker/OHLCV adapters do not read exchange API keys. Deribit defaults to the production public host; testnet is not selected by this env var. The server listens on port 8788.
 
 ### Backtest Configuration
 
-Located in `slate_core/discovery/edge_discovery_engine.py`:
+Located in `slate_core/discovery/edge_discovery_engine.py`. These discovery-engine defaults are separate from the paper book's 3% / lev 3 / $100 caps.
 
 ```python
 @dataclass
@@ -414,12 +436,19 @@ SLATE/
 │   │       ├── app.js             # Dashboard application logic
 │   │       ├── charts.js          # Chart.js visualizations
 │   │       └── utils.js           # Utility functions
+│   ├── connectors/                # Paper market-data + paper book
+│   │   ├── factory.py             # SLATE_DATA_PROVIDER → venue adapter
+│   │   ├── binance_provider.py    # Default public REST
+│   │   ├── kraken.py / coinbase.py / deribit.py
+│   │   └── paper_book.py          # Long + short, same caps
 │   ├── discovery/
 │   │   ├── edge_discovery_engine.py  # Main discovery engine
 │   │   ├── discovery_memory.py       # Persistent memory system
 │   │   └── nl_strategy_generator.py  # Natural language to strategy conversion
 │   └── palace_data/               # Knowledge graph storage
-├── tests/                         # Test suite
+├── tests/                         # Test suite + provider fixtures
+├── test_paper_sides.py            # Paper long/short path
+├── test_market_providers.py       # Venue adapters (incl. Coinbase 350 / Deribit)
 └── requirements.txt               # Python dependencies
 ```
 
@@ -444,6 +473,9 @@ To add a new strategy template programmatically:
 ### Running Tests
 
 ```bash
+pytest test_paper_sides.py test_market_providers.py -q
+# optional live public APIs (no keys; skip if a venue is unreachable):
+pytest test_market_providers.py -m network -q
 pytest tests/ -v
 ```
 
@@ -497,7 +529,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 - Built with FastAPI, Python, and JavaScript
 - Uses Chart.js for visualizations
-- Market data from Binance public API
+- Market data from public REST: Binance (default), Kraken, Coinbase Exchange, Deribit (perps/linear)
 - Inspired by quantitative trading research
 
 ## 📞 Support
