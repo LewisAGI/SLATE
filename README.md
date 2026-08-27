@@ -45,11 +45,22 @@ Market data is provider-pluggable. **Binance stays the default.** Public REST ad
 | `coinbase` | Coinbase Exchange public REST (`api.exchange.coinbase.com`, not Advanced Trade v3) | `SOLUSDT` → `SOL-USDT` then `SOL-USD` |
 | `deribit` | Deribit public JSON-RPC (`https://www.deribit.com/api/v2/`; testnet `https://test.deribit.com/api/v2/` is opt-in, not default) | `BTCUSDT` → `BTC-PERPETUAL` then linear `BTC_USDC-PERPETUAL`; same for ETH. **Perps / linear only this pass.** `SOLUSDT` and options (`BTC-27JUN26-100000-C`) fail closed. |
 
-Select the venue with `SLATE_DATA_PROVIDER=binance|kraken|coinbase|deribit` or `AutonomousConfig.data_provider`. Replay of recorded real bars is constructed explicitly (`ReplayMarketDataProvider`); `get_market_data_provider("replay")` raises so a name lookup cannot invent a book.
+Switch venue with the env var or the autonomous config (Binance remains the default if unset):
 
-**Coinbase candles:** Exchange API returns at most **350** bars per request. `limit > 350` paginates with `start` / `end` or raises `MarketDataError`. It does not silently return a short series.
+```bash
+export SLATE_DATA_PROVIDER=deribit   # or kraken | coinbase | binance
+```
 
-**Deribit charts:** `public/get_tradingview_chart_data` is capped at **5000** bars per page (observed 5001 inclusive). `limit > 5000` paginates or fail-closes the same way.
+```python
+from slate_core.autonomous.config import AutonomousConfig
+config = AutonomousConfig(data_provider="deribit")  # or "kraken" | "coinbase" | "binance"
+```
+
+Replay of recorded real bars is constructed explicitly (`ReplayMarketDataProvider`); `get_market_data_provider("replay")` raises so a name lookup cannot invent a book.
+
+**Coinbase candles:** Exchange API (`https://api.exchange.coinbase.com`) returns at most **350** bars per request. Not Advanced Trade v3. `limit > 350` paginates with `start` / `end` or raises `MarketDataError`. It does not silently return a short series.
+
+**Deribit first cut is perps / linear only** (`BTC-PERPETUAL` / `ETH-PERPETUAL`, linear USDC fallback if listed). Options (`BTC-27JUN26-100000-C` style) are out of this pass — no options book, greeks, or strikes. Implemented against the public market API on docs.deribit.com (`public/ticker`, `public/get_tradingview_chart_data`, `public/get_instruments`). **insights.deribit.com is not used and is not scraped.** Chart pages are capped at **5000** bars (observed 5001 inclusive); `limit > 5000` paginates or fail-closes.
 
 ---
 
@@ -377,7 +388,7 @@ Create a `.env` file in the project root:
 SLATE_DATA_PROVIDER=binance   # or kraken | coinbase | deribit
 ```
 
-Public ticker/OHLCV adapters do not read exchange API keys. Deribit defaults to the production public host; testnet is not selected by this env var. The server listens on port 8788.
+Public ticker/OHLCV adapters do not read exchange API keys, and the paper server path does not place live orders. Deribit defaults to the production public host; testnet is not selected by this env var. The server listens on port 8788.
 
 ### Backtest Configuration
 
