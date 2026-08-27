@@ -248,13 +248,13 @@ class DeribitDataProvider(MarketDataProvider):
         venue_symbol: str,
     ) -> List[Dict[str, Any]]:
         status = result.get("status")
-        if status == "no_data":
-            raise MarketDataError(f"deribit chart no_data for {venue_symbol}")
+        ticks = result.get("ticks")
+        if status == "no_data" or ticks == []:
+            return []
         if status not in {None, "ok"}:
             raise MarketDataError(
                 f"deribit chart status {status!r} for {venue_symbol}"
             )
-        ticks = result.get("ticks")
         opens = result.get("open")
         highs = result.get("high")
         lows = result.get("low")

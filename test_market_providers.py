@@ -408,10 +408,21 @@ def test_deribit_limit_over_page_cap_fail_closed_when_short():
     ]
     calls = []
 
+    instruments = {
+        "jsonrpc": "2.0",
+        "result": [
+            {
+                "instrument_name": "BTC-PERPETUAL",
+                "is_active": True,
+                "kind": "future",
+            }
+        ],
+    }
+
     def fake_get(url, params=None, **_):
         params = params or {}
         if "get_instruments" in url:
-            return _deribit_instruments()
+            return instruments
         calls.append(dict(params))
         start = int(params["start_timestamp"])
         end = int(params["end_timestamp"])
