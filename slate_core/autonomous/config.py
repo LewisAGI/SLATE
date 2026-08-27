@@ -90,6 +90,9 @@ class Discovery:
     discovery_method: str
     timestamp: datetime = field(default_factory=datetime.now)
     validation_details: Dict[str, Any] = field(default_factory=dict)
+    # Existing signal convention: 'LONG' or 'SHORT'. Optional so current
+    # long-only Discovery() constructors keep working.
+    entry_type: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -112,7 +115,8 @@ class Discovery:
             'realistic_edge': self.realistic_edge,
             'discovery_method': self.discovery_method,
             'timestamp': self.timestamp.isoformat(),
-            'validation_details': self.validation_details
+            'validation_details': self.validation_details,
+            'entry_type': self.entry_type,
         }
 
 @dataclass
@@ -202,6 +206,8 @@ class AutonomousConfig:
     allowed_symbols: List[str] = field(default_factory=lambda: ["SOLUSDT", "BTCUSDT"])
     allowed_timeframes: List[str] = field(default_factory=lambda: ["1h", "4h", "1d"])
     max_positions: int = 5  # Maximum concurrent strategies
+    # Public market-data venue. binance (default) | kraken | coinbase
+    data_provider: str = "binance"
 
     # Discovery preferences
     enable_regime_analysis: bool = True

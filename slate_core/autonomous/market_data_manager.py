@@ -2,19 +2,18 @@
 SLATE Autonomous Market Data Manager
 
 Automatically fetches and manages market data for autonomous operations.
+
+Venue is pluggable (Binance default, Kraken, Coinbase). Canonical symbols
+such as SOLUSDT are mapped to the nearest listed pair on each venue.
 """
 
 import logging
 import asyncio
-from typing import Dict, List, Optional
-from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional
+from datetime import datetime
 from dataclasses import dataclass
 
-try:
-    from ..connectors.binance_spot import BinanceSpotConnector
-    CONNECTOR_AVAILABLE = True
-except ImportError:
-    CONNECTOR_AVAILABLE = False
+from slate_core.connectors.factory import get_market_data_provider
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +28,8 @@ class MarketDataSnapshot:
     change_24h: float
     high_24h: float
     low_24h: float
+    provider: str = "binance"
+    venue_symbol: str = ""
 
     def to_dict(self):
         return {
@@ -38,7 +39,9 @@ class MarketDataSnapshot:
             'volume_24h': self.volume_24h,
             'change_24h': self.change_24h,
             'high_24h': self.high_24h,
-            'low_24h': self.low_24h
+            'low_24h': self.low_24h,
+            'provider': self.provider,
+            'venue_symbol': self.venue_symbol,
         }
 
 
@@ -51,19 +54,32 @@ class MarketDataManager:
     - Data caching to reduce API calls
     - Multi-symbol support
     - Error handling and retries
+    - Pluggable venue (Binance / Kraken / Coinbase)
     """
 
-    def __init__(self, symbols: List[str], update_interval_seconds: int = 60):
+    def __init__(
+        self,
+        symbols: List[str],
+        update_interval_seconds: int = 60,
+        provider=None,
+        provider_name: Optional[str] = None,
+    ):
         self.symbols = symbols
         self.update_interval = update_interval_seconds
 
-        # Initialize connector
-        if CONNECTOR_AVAILABLE:
-            self.connector = BinanceSpotConnector()
-            logger.info(f"Market connector initialized for {len(symbols)} symbols")
+        self.connector = None
+        if provider is not None:
+            self.connector = provider
         else:
-            self.connector = None
-            logger.warning("Binance connector not available - market data limited")
+            try:
+                self.connector = get_market_data_provider(provider_name)
+                logger.info(
+                    "Market connector initialized (%s) for %d symbols",
+                    getattr(self.connector, "name", "unknown"),
+                    len(symbols),
+                )
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("Market data provider not available - market data limited: %s", exc)
 
         # Data cache
         self.market_data_cache: Dict[str, MarketDataSnapshot] = {}
@@ -163,10 +179,12 @@ class MarketDataManager:
                 symbol=symbol,
                 timestamp=datetime.now(),
                 last_price=ticker['last_price'],
-                volume_24h=ticker['volume_24h'],
-                change_24h=ticker['change_24h'],
-                high_24h=ticker['high_24h'],
-                low_24h=ticker['low_24h']
+                volume_24h=ticker.get('volume_24h', 0.0),
+                change_24h=ticker.get('change_24h', 0.0),
+                high_24h=ticker.get('high_24h', 0.0),
+                low_24h=ticker.get('low_24h', 0.0),
+                provider=ticker.get('provider', getattr(self.connector, 'name', 'unknown')),
+                venue_symbol=ticker.get('venue_symbol', symbol),
             )
 
             # Update cache
@@ -209,6 +227,7 @@ class MarketDataManager:
             'available': True,
             'last_update': self.last_update_time.isoformat() if self.last_update_time else None,
             'is_stale': self.is_data_stale(),
+            'provider': getattr(self.connector, 'name', None),
             'symbols': {
                 symbol: {
                     'last_price': data.last_price,
@@ -216,7 +235,9 @@ class MarketDataManager:
                     'change_24h': data.change_24h,
                     'high_24h': data.high_24h,
                     'low_24h': data.low_24h,
-                    'timestamp': data.timestamp.isoformat()
+                    'timestamp': data.timestamp.isoformat(),
+                    'venue_symbol': data.venue_symbol,
+                    'provider': data.provider,
                 }
                 for symbol, data in market_data.items()
             }
@@ -230,6 +251,7 @@ class MarketDataManager:
             'auto_fetch_active': self.auto_fetch_active,
             'last_update': self.last_update_time.isoformat() if self.last_update_time else None,
             'is_stale': self.is_data_stale(),
-            'connector_available': CONNECTOR_AVAILABLE,
+            'connector_available': self.connector is not None,
+            'provider': getattr(self.connector, 'name', None),
             'update_interval_seconds': self.update_interval
         }

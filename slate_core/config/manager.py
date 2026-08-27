@@ -6,7 +6,7 @@ Centralized configuration with validation, environment-specific configs, and run
 import os
 import json
 import logging
-from typing import Any, Dict, Optional, Type, TypeVar
+from typing import Any, Callable, Dict, Optional, Type, TypeVar
 from dataclasses import dataclass, field
 from pathlib import Path
 from enum import Enum
