@@ -206,7 +206,7 @@ class AutonomousConfig:
     allowed_symbols: List[str] = field(default_factory=lambda: ["SOLUSDT", "BTCUSDT"])
     allowed_timeframes: List[str] = field(default_factory=lambda: ["1h", "4h", "1d"])
     max_positions: int = 5  # Maximum concurrent strategies
-    # Public market-data venue. binance (default) | kraken | coinbase
+    # Public market-data venue. binance (default) | kraken | coinbase | deribit
     data_provider: str = "binance"
 
     # Discovery preferences

@@ -3,8 +3,9 @@ SLATE Autonomous Market Data Manager
 
 Automatically fetches and manages market data for autonomous operations.
 
-Venue is pluggable (Binance default, Kraken, Coinbase). Canonical symbols
-such as SOLUSDT are mapped to the nearest listed pair on each venue.
+Venue is pluggable (Binance default, Kraken, Coinbase, Deribit). Canonical
+symbols such as SOLUSDT are mapped to the nearest listed pair on each venue
+that actually lists them (Deribit fails closed on SOLUSDT).
 """
 
 import logging
@@ -54,7 +55,7 @@ class MarketDataManager:
     - Data caching to reduce API calls
     - Multi-symbol support
     - Error handling and retries
-    - Pluggable venue (Binance / Kraken / Coinbase)
+    - Pluggable venue (Binance / Kraken / Coinbase / Deribit)
     """
 
     def __init__(

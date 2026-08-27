@@ -1,0 +1,33 @@
+{
+  "jsonrpc": "2.0",
+  "result": [
+    {
+      "instrument_name": "BTC-PERPETUAL",
+      "is_active": true,
+      "kind": "future",
+      "instrument_type": "reversed",
+      "settlement_period": "perpetual"
+    },
+    {
+      "instrument_name": "BTC_USDC-PERPETUAL",
+      "is_active": true,
+      "kind": "future",
+      "instrument_type": "linear",
+      "settlement_period": "perpetual"
+    },
+    {
+      "instrument_name": "ETH-PERPETUAL",
+      "is_active": true,
+      "kind": "future",
+      "instrument_type": "reversed",
+      "settlement_period": "perpetual"
+    },
+    {
+      "instrument_name": "ETH_USDC-PERPETUAL",
+      "is_active": true,
+      "kind": "future",
+      "instrument_type": "linear",
+      "settlement_period": "perpetual"
+    }
+  ]
+}

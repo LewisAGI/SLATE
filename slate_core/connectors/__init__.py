@@ -1,4 +1,4 @@
-"""Venue connectors: Binance (existing) plus Kraken / Coinbase data adapters.
+"""Venue connectors: Binance (existing) plus Kraken / Coinbase / Deribit.
 
 Paper trading only. Public market data. No synthetic prices on the new path.
 """

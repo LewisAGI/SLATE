@@ -4,7 +4,8 @@ SLATE historically hardcoded Binance + SOLUSDT and paper-entered LONG only.
 This module is the venue-agnostic surface:
 
 - Canonical symbols (``SOLUSDT``, ``BTCUSDT``, …) map to the nearest listed
-  pair on each venue (Kraken ``SOLUSD`` / ``SOLUSDT``, Coinbase ``SOL-USD``).
+  pair on each venue (Kraken ``SOLUSD`` / ``SOLUSDT``, Coinbase ``SOL-USD``,
+  Deribit ``BTC-PERPETUAL``). Deribit fails closed on SOLUSDT.
 - Providers fetch **real** public market data. They must not invent prices.
 - Orders stay paper-only. Live keys are not required for the data path.
 
@@ -40,6 +41,12 @@ VENUE_SYMBOL_CANDIDATES: Dict[str, Dict[str, List[str]]] = {
         "SOLUSDT": ["SOL-USDT", "SOL-USD"],
         "BTCUSDT": ["BTC-USDT", "BTC-USD"],
         "ETHUSDT": ["ETH-USDT", "ETH-USD"],
+    },
+    # Inverse first (BTC-PERPETUAL / ETH-PERPETUAL), then verified linear
+    # USDC perps. SOLUSDT is intentionally absent — fail closed, no SOL book.
+    "deribit": {
+        "BTCUSDT": ["BTC-PERPETUAL", "BTC_USDC-PERPETUAL"],
+        "ETHUSDT": ["ETH-PERPETUAL", "ETH_USDC-PERPETUAL"],
     },
 }
 

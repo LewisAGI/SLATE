@@ -50,9 +50,14 @@ BINANCE_API_KLINES = f"{BINANCE_API_BASE}/api/v3/klines"
 BINANCE_FUTURES_API_BASE = "https://fapi.binance.com"
 KRAKEN_API_BASE = "https://api.kraken.com"
 COINBASE_EXCHANGE_API_BASE = "https://api.exchange.coinbase.com"
+# Deribit public JSON-RPC. Production host is the adapter default; testnet is
+# documented only and must be passed explicitly (no key for public GET).
+DERIBIT_API_BASE = "https://www.deribit.com/api/v2"
+DERIBIT_TESTNET_API_BASE = "https://test.deribit.com/api/v2"
 
 # Market-data / paper-execution venue. Public REST only; paper trading never
-# places live orders. Override with SLATE_DATA_PROVIDER=binance|kraken|coinbase.
+# places live orders. Override with
+# SLATE_DATA_PROVIDER=binance|kraken|coinbase|deribit. Default stays Binance.
 DEFAULT_DATA_PROVIDER = "binance"
 
 # Data cache paths
