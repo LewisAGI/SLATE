@@ -7,6 +7,7 @@ so CI without egress still goes green. Mocked tests always run.
 from __future__ import annotations
 
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pandas as pd
@@ -17,7 +18,7 @@ from slate_core.connectors.base import (
     resolve_canonical_symbol,
 )
 from slate_core.connectors.binance_provider import BinanceDataProvider
-from slate_core.connectors.coinbase import CoinbaseDataProvider
+from slate_core.connectors.coinbase import MAX_CANDLES, CoinbaseDataProvider
 from slate_core.connectors.factory import available_providers, get_market_data_provider
 from slate_core.connectors.kraken import KrakenDataProvider
 from slate_core.connectors.paper_book import PaperTradingBook
@@ -41,6 +42,12 @@ def test_factory_lists_binance_kraken_coinbase():
         get_market_data_provider("replay")
     with pytest.raises(MarketDataError):
         get_market_data_provider("not-a-venue")
+
+
+def test_factory_default_stays_binance(monkeypatch):
+    """Mailbox: do not flip the default because Binance 451s on some egress."""
+    monkeypatch.delenv("SLATE_DATA_PROVIDER", raising=False)
+    assert get_market_data_provider().name == "binance"
 
 
 def test_symbol_map_solusdt_nearest_pairs():
@@ -121,6 +128,66 @@ def test_coinbase_provider_parses_real_response_shape():
     # Sorted oldest → newest even though Coinbase sends newest first
     assert bars[0]["close"] == pytest.approx(141.0)
     assert bars[1]["close"] == pytest.approx(144.0)
+
+
+def _parse_coinbase_bound(value: str) -> int:
+    return int(datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp())
+
+
+def _synthetic_coinbase_candles(count: int, now_ts: int | None = None):
+    # Newest first, Exchange API shape: [time, low, high, open, close, volume]
+    now_ts = now_ts or int(datetime.now(timezone.utc).timestamp())
+    return [
+        [now_ts - i * 86400, 1.0, 2.0, 1.5, 1.6 + i * 0.001, 10.0]
+        for i in range(count)
+    ]
+
+
+def test_coinbase_limit_over_350_paginates_start_end():
+    """limit>350 must page with start/end and return exactly `limit` bars."""
+    universe = _synthetic_coinbase_candles(500)
+    calls = []
+
+    def fake_get(url, params=None, **_):
+        assert url.endswith("/candles")
+        params = params or {}
+        calls.append(dict(params))
+        start = _parse_coinbase_bound(params["start"])
+        end = _parse_coinbase_bound(params["end"])
+        matched = [row for row in universe if start <= row[0] <= end]
+        matched.sort(key=lambda row: row[0], reverse=True)
+        return matched[:MAX_CANDLES]
+
+    provider = CoinbaseDataProvider(session_get=fake_get, page_sleep=0)
+    bars = provider.fetch_ohlcv("SOLUSDT", interval="1d", limit=400)
+    assert len(bars) == 400
+    assert len(calls) >= 2
+    assert all("start" in c and "end" in c for c in calls)
+    assert all(c.get("granularity") == 86400 for c in calls)
+    timestamps = [b["timestamp"] for b in bars]
+    assert timestamps == sorted(timestamps)
+    assert timestamps[0] < timestamps[-1]
+
+
+def test_coinbase_limit_over_350_fail_closed_when_short():
+    """Do not silently return 350 when the caller asked for more."""
+    universe = _synthetic_coinbase_candles(MAX_CANDLES)
+    calls = []
+
+    def fake_get(url, params=None, **_):
+        params = params or {}
+        calls.append(dict(params))
+        start = _parse_coinbase_bound(params["start"])
+        end = _parse_coinbase_bound(params["end"])
+        matched = [row for row in universe if start <= row[0] <= end]
+        matched.sort(key=lambda row: row[0], reverse=True)
+        return matched[:MAX_CANDLES]
+
+    provider = CoinbaseDataProvider(session_get=fake_get, page_sleep=0)
+    with pytest.raises(MarketDataError, match="350"):
+        provider.fetch_ohlcv("SOLUSDT", interval="1d", limit=400)
+    assert len(calls) >= 1
+    assert "start" in calls[0] and "end" in calls[0]
 
 
 def test_kraken_coinbase_fail_closed_on_empty():
